@@ -20,7 +20,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek/deepseek-chat-v3-0324:free")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen3-next-80b-a3b-instruct:free")
 
 if not BOT_TOKEN or not OPENROUTER_API_KEY:
     raise ValueError("Необходимо установить BOT_TOKEN и OPENROUTER_API_KEY в переменных окружения")
@@ -35,21 +35,21 @@ client = OpenAI(
     api_key=OPENROUTER_API_KEY,
     default_headers={
         "HTTP-Referer": "https://bothost.ru",
-        "X-Title": "AI Telegram Bot"
+        "X-Title": "Astra AI Bot"
     }
 )
 
 # === КОНФИГУРАЦИЯ МОДЕЛЕЙ ===
 MODELS = {
-    "deepseek": "deepseek/deepseek-chat-v3-0324:free",
-    "gemini": "google/gemini-2.0-flash-exp:free",
-    "r1": "deepseek/deepseek-r1:free",
+    "qwen": "qwen/qwen3-next-80b-a3b-instruct:free",
+    "nemotron": "nvidia/nemotron-nano-9b-v2:free",
+    "gemma": "google/gemma-4-31b-it:free",
 }
 
 MODEL_NAMES = {
-    "deepseek": "DeepSeek V3 (лучший универсальный)",
-    "gemini": "Gemini 2.0 Flash (быстрый + большой контекст)",
-    "r1": "DeepSeek R1 (сложные рассуждения)",
+    "qwen": "Qwen3 Next 80B (отличный универсальный)",
+    "nemotron": "NVIDIA Nemotron Nano 9B (быстрый и умный)",
+    "gemma": "Google Gemma 4 31B (хорошее качество)",
 }
 
 # === СИСТЕМНЫЕ ПРОМПТЫ (отдельные для разных режимов) ===
@@ -125,9 +125,9 @@ def get_modes_keyboard():
 
 def get_models_keyboard():
     builder = InlineKeyboardBuilder()
-    builder.button(text="DeepSeek V3", callback_data="model_deepseek")
-    builder.button(text="Gemini 2.0", callback_data="model_gemini")
-    builder.button(text="DeepSeek R1", callback_data="model_r1")
+    builder.button(text="Qwen3 Next 80B", callback_data="model_qwen")
+    builder.button(text="NVIDIA Nemotron", callback_data="model_nemotron")
+    builder.button(text="Google Gemma 4", callback_data="model_gemma")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -170,6 +170,8 @@ async def call_openrouter(messages: List[dict], model: str, system_prompt: str) 
             return "⚠️ Превышен лимит запросов к бесплатной модели. Подожди 30-60 секунд и попробуй снова."
         elif "401" in error_msg or "api key" in error_msg.lower():
             return "❌ Проблема с API ключом OpenRouter. Проверь ключ."
+        elif "404" in error_msg or "unavailable" in error_msg.lower():
+            return "❌ Эта модель временно недоступна бесплатно.\n\nПопробуй сменить модель: `/model qwen` или `/model nemotron`"
         else:
             return f"❌ Ошибка при обращении к ИИ: {error_msg[:150]}"
 
@@ -180,13 +182,13 @@ async def cmd_start(message: Message):
     get_user_data(chat_id)  # инициализация
     
     welcome_text = (
-        "🤖 Привет! Я **AI-бот** на базе бесплатных моделей OpenRouter.\n\n"
-        "Доступные модели:\n"
-        "• DeepSeek V3 — лучший универсальный\n"
-        "• Gemini 2.0 Flash — быстрый и мощный\n"
-        "• DeepSeek R1 — для сложных задач\n\n"
+        "🤖 Привет! Меня зовут **Astra** — твой умный ИИ-ассистент.\n\n"
+        "Я работаю на бесплатных мощных моделях через OpenRouter:\n"
+        "• Qwen3 Next 80B — отличный универсальный\n"
+        "• NVIDIA Nemotron Nano 9B — быстрый и умный\n"
+        "• Google Gemma 4 31B — хорошее качество\n\n"
         "У меня есть разные режимы с отдельными промптами.\n\n"
-        "Просто пиши мне сообщение, и я отвечу!\n"
+        "Просто пиши мне что угодно 👇\n"
         "Используй кнопки ниже или команды /help"
     )
     
@@ -195,12 +197,12 @@ async def cmd_start(message: Message):
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     help_text = (
-        "📖 **Команды бота:**\n\n"
+        "📖 **Команды бота Astra:**\n\n"
         "/start — запуск\n"
         "/help — эта помощь\n"
         "/modes — список режимов\n"
         "/mode <режим> — сменить режим\n"
-        "/model <deepseek|gemini|r1> — сменить модель\n"
+        "/model <qwen|nemotron|gemma> — сменить модель\n"
         "/setprompt <текст> — установить свой системный промпт\n"
         "/reset — очистить историю чата\n"
         "/current — показать текущие настройки\n\n"
@@ -220,11 +222,11 @@ async def cmd_model(message: Message, command: CommandObject):
     data = get_user_data(chat_id)
     
     if not command.args:
-        text = "🧠 **Доступные модели:**\n\n"
+        text = "🧠 **Я работаю на бесплатных мощных моделях через OpenRouter:**\n\n"
         for key, name in MODEL_NAMES.items():
             current = " ✅" if MODELS[key] == data["model"] else ""
             text += f"• `{key}` — {name}{current}\n"
-        text += "\nИспользуй: `/model deepseek` или кнопки ниже"
+        text += "\nИспользуй: `/model qwen` или кнопки ниже"
         await message.answer(text, reply_markup=get_models_keyboard())
         return
     
@@ -236,7 +238,7 @@ async def cmd_model(message: Message, command: CommandObject):
             reply_markup=get_main_keyboard()
         )
     else:
-        await message.answer("❌ Неизвестная модель. Доступны: deepseek, gemini, r1")
+        await message.answer("❌ Неизвестная модель. Доступны: qwen, nemotron, gemma")
 
 @dp.message(Command("setprompt"))
 async def cmd_setprompt(message: Message, command: CommandObject):
@@ -432,7 +434,7 @@ async def handle_message(message: Message):
 
 # === ЗАПУСК ===
 async def main():
-    logger.info("🚀 Запуск AI Telegram бота...")
+    logger.info("🚀 Запуск бота Astra...")
     logger.info(f"Используется модель по умолчанию: {DEFAULT_MODEL}")
     
     # Polling — надёжный способ для Bothost.ru
